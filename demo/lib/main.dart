@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -118,6 +119,12 @@ void onStart(ServiceInstance service) async {
     service.stopSelf();
   });
 
+  service.on('dataInput').listen((event) {
+    print('data invokation: ');
+    print(event!['key']);
+    print(event!['value']);
+  });
+
   // bring to foreground
   Timer.periodic(const Duration(seconds: 1), (timer) async {
     if (service is AndroidServiceInstance) {
@@ -179,6 +186,26 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String text = "Stop Service";
+
+  void requestPermission() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.location,
+      Permission.notification,
+    ].request();
+
+    statuses.values.forEach((element) async {
+      if (element.isDenied || element.isPermanentlyDenied) {
+        await openAppSettings();
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    requestPermission();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -232,6 +259,22 @@ class _MyAppState extends State<MyApp> {
                   text = isRunning ? 'Start Service' : 'Stop Service';
                 });
               },
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final service = FlutterBackgroundService();
+                var isRunning = await service.isRunning();
+                if (isRunning) {
+                  service.invoke(
+                    'dataInput',
+                    {
+                      "key": 'data key',
+                      "value": DateTime.now().toIso8601String(),
+                    },
+                  );
+                }
+              },
+              child: Text('Invoke with data'),
             ),
             const Expanded(
               child: LogView(),
